@@ -64,7 +64,7 @@ class _HomeScreenState extends State<HomeScreen> {
         'name': 'Carrots',
         'harvest': 'Fresh Carrots',
         'price': '900',
-        // 'image': 'assets/images/carrots.jpg'
+        'image': 'assets/images/carrots.jpg'
       },
     ];
 
@@ -190,7 +190,7 @@ class _HomeScreenState extends State<HomeScreen> {
   @override
   Widget build(BuildContext context) {
     final pages = [
-      HomePage(),
+      _buildHomeTab(),
       ServicesPage(),
       CartPage(),
       ProfilePage(),

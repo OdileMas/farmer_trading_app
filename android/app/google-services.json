@@ -1,0 +1,48 @@
+{
+  "project_info": {
+    "project_number": "992393845979",
+    "project_id": "farmer-trading-app",
+    "storage_bucket": "farmer-trading-app.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:992393845979:android:927bc892786a4e288c00fe",
+        "android_client_info": {
+          "package_name": "com.example.farmer_trading_app"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyBwpRTfURFl7mRcV8YUp7qKgwFR3LFx4Ng"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    },
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:992393845979:android:fa2aa9e40a79dbdc8c00fe",
+        "android_client_info": {
+          "package_name": "com.flutter.farmer_trading_app"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyBwpRTfURFl7mRcV8YUp7qKgwFR3LFx4Ng"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

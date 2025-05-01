@@ -1,4 +1,4 @@
-   import 'dart:async';
+import 'dart:async';
 import 'dart:io';
 import 'package:sqflite/sqflite.dart';
 import 'package:path/path.dart';
@@ -19,7 +19,7 @@ class DatabaseHelper {
     Directory documentsDirectory = await getApplicationDocumentsDirectory();
     String path = join(documentsDirectory.path, 'farmers.db');
 
-    return openDatabase(
+    return await openDatabase(
       path,
       version: 1,
       onCreate: _onCreate,
@@ -39,9 +39,9 @@ class DatabaseHelper {
     ''');
 
     await db.execute('''
-      CREATE TABLE admins(
+      CREATE TABLE admins (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
-        username TEXT,
+        username TEXT UNIQUE,
         password TEXT
       )
     ''');
@@ -58,23 +58,41 @@ class DatabaseHelper {
     // Insert default admin
     await db.insert('admins', {
       'username': 'admin',
-      'password': 'admin123' // simple for now
+      'password': 'admin123'
     });
   }
 
-  // Optional: drop and recreate table on upgrade (for development only)
   Future _onUpgrade(Database db, int oldVersion, int newVersion) async {
     await db.execute('DROP TABLE IF EXISTS farmers');
+    await db.execute('DROP TABLE IF EXISTS admins');
+    await db.execute('DROP TABLE IF EXISTS users');
     await _onCreate(db, newVersion);
   }
 
-  // Insert new user
+  // ===================== Admin Methods =====================
+
+  Future<int> insertAdmin(Map<String, dynamic> admin) async {
+    Database db = await instance.database;
+    return await db.insert('admins', admin);
+  }
+
+  Future<Map<String, dynamic>?> validateAdmin(String username, String password) async {
+    Database db = await instance.database;
+    List<Map<String, dynamic>> result = await db.query(
+      'admins',
+      where: 'username = ? AND password = ?',
+      whereArgs: [username, password],
+    );
+    return result.isNotEmpty ? result.first : null;
+  }
+
+  // ===================== User Methods =====================
+
   Future<int> insertUser(Map<String, dynamic> user) async {
     Database db = await instance.database;
     return await db.insert('users', user);
   }
 
-  // Validate user by email and password
   Future<Map<String, dynamic>?> validateUser(String email, String password) async {
     Database db = await instance.database;
     List<Map<String, dynamic>> result = await db.query(
@@ -82,10 +100,11 @@ class DatabaseHelper {
       where: 'email = ? AND password = ?',
       whereArgs: [email, password],
     );
-    return result.isNotEmpty ? result.first : null; // Now, it returns the entire user data including name
+    return result.isNotEmpty ? result.first : null;
   }
 
-  // Insert a new farmer
+  // ===================== Farmer CRUD =====================
+
   Future<int> insertFarmer(Map<String, dynamic> farmer) async {
     Database db = await instance.database;
     return await db.insert('farmers', farmer);

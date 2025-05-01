@@ -1,4 +1,4 @@
-    import 'package:flutter/material.dart';
+import 'package:flutter/material.dart';
 import 'package:farmer_trading_app/database_helper.dart';
 import 'admin_dashboard_screen.dart';
 
@@ -12,41 +12,38 @@ class _AdminLoginScreenState extends State<AdminLoginScreen> {
   final TextEditingController _passwordController = TextEditingController();
   String _error = '';
 
- Future<void> _loginAdmin() async {
-  setState(() {
-    _error = '';
-  });
-
-  final username = _usernameController.text.trim();
-  final password = _passwordController.text.trim();
-
-  if (username.isEmpty || password.isEmpty) {
+  Future<void> _loginAdmin() async {
     setState(() {
-      _error = 'Please fill in both fields';
+      _error = '';
     });
-    return;
-  }
 
-  final db = await DatabaseHelper.instance.database;
-  final result = await db.query(
-    'admins',
-    where: 'username = ? AND password = ?',
-    whereArgs: [username, password],
-  );
+    final username = _usernameController.text.trim();
+    final password = _passwordController.text.trim();
 
-  if (result.isNotEmpty) {
-    _usernameController.clear();
-    _passwordController.clear();
-    Navigator.pushReplacement(
-      context,
-      MaterialPageRoute(builder: (_) => AdminDashboardScreen()),
-    );
-  } else {
-    setState(() {
-      _error = 'Invalid credentials';
-    });
+    if (username.isEmpty || password.isEmpty) {
+      setState(() {
+        _error = 'Please fill in both fields';
+      });
+      return;
+    }
+
+    final dbHelper = DatabaseHelper.instance;
+    final admin = await dbHelper.validateAdmin(username, password);
+
+    if (admin != null) {
+      // Clear input and go to admin dashboard
+      _usernameController.clear();
+      _passwordController.clear();
+      Navigator.pushReplacement(
+        context,
+        MaterialPageRoute(builder: (_) => AdminDashboardScreen()),
+      );
+    } else {
+      setState(() {
+        _error = 'Invalid credentials';
+      });
+    }
   }
-}
 
   @override
   Widget build(BuildContext context) {
@@ -56,11 +53,22 @@ class _AdminLoginScreenState extends State<AdminLoginScreen> {
         padding: const EdgeInsets.all(16.0),
         child: Column(
           children: [
-            if (_error.isNotEmpty) Text(_error, style: TextStyle(color: Colors.red)),
-            TextField(controller: _usernameController, decoration: InputDecoration(labelText: 'Username')),
-            TextField(controller: _passwordController, obscureText: true, decoration: InputDecoration(labelText: 'Password')),
+            if (_error.isNotEmpty)
+              Text(_error, style: TextStyle(color: Colors.red)),
+            TextField(
+              controller: _usernameController,
+              decoration: InputDecoration(labelText: 'Username'),
+            ),
+            TextField(
+              controller: _passwordController,
+              obscureText: true,
+              decoration: InputDecoration(labelText: 'Password'),
+            ),
             SizedBox(height: 20),
-            ElevatedButton(onPressed: _loginAdmin, child: Text('Login')),
+            ElevatedButton(
+              onPressed: _loginAdmin,
+              child: Text('Login'),
+            ),
           ],
         ),
       ),
