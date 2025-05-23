@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import 'package:farmer_trading_app/database_helper.dart';
-import 'admin_dashboard_screen.dart';
 
 class AdminLoginScreen extends StatefulWidget {
   @override
@@ -31,12 +30,16 @@ class _AdminLoginScreenState extends State<AdminLoginScreen> {
     final admin = await dbHelper.validateAdmin(username, password);
 
     if (admin != null) {
-      // Clear input and go to admin dashboard
       _usernameController.clear();
       _passwordController.clear();
-      Navigator.pushReplacement(
+      // Navigate to the admin dashboard and pass arguments
+      Navigator.pushReplacementNamed(
         context,
-        MaterialPageRoute(builder: (_) => AdminDashboardScreen()),
+        '/admin_dashboard',
+        arguments: {
+          'adminId': admin['id'],
+          'adminName': admin['username'],
+        },
       );
     } else {
       setState(() {
@@ -52,6 +55,7 @@ class _AdminLoginScreenState extends State<AdminLoginScreen> {
       body: Padding(
         padding: const EdgeInsets.all(16.0),
         child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             if (_error.isNotEmpty)
               Text(_error, style: TextStyle(color: Colors.red)),
@@ -65,9 +69,14 @@ class _AdminLoginScreenState extends State<AdminLoginScreen> {
               decoration: InputDecoration(labelText: 'Password'),
             ),
             SizedBox(height: 20),
-            ElevatedButton(
-              onPressed: _loginAdmin,
-              child: Text('Login'),
+            Center(
+              child: ElevatedButton(
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: Colors.green,
+                ),
+                onPressed: _loginAdmin, // ✅ fixed: now triggers login
+                child: Text('Login'),
+              ),
             ),
           ],
         ),

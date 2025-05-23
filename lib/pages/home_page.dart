@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:iconly/iconly.dart';
+import 'package:farmer_trading_app/database_helper.dart';
 
 class HomePage extends StatefulWidget {
   @override
@@ -16,6 +17,7 @@ class _HomePageState extends State<HomePage> {
       'price': 1500,
       'amount': '10 Kg',
       'description': 'Fresh organic tomatoes grown locally.',
+      'id': 1 // Added an ID field for each product
     },
     {
       'name': 'Avocados',
@@ -23,6 +25,7 @@ class _HomePageState extends State<HomePage> {
       'price': 1200,
       'amount': '8 Kg',
       'description': 'Ripe and creamy avocados ready for sale.',
+      'id': 2 // Added an ID field for each product
     },
     {
       'name': 'Potatoes',
@@ -30,6 +33,7 @@ class _HomePageState extends State<HomePage> {
       'price': 1000,
       'amount': '20 Kg',
       'description': 'High-quality potatoes from mountain farms.',
+      'id': 3 // Added an ID field for each product
     },
     {
       'name': 'Carrots',
@@ -37,6 +41,7 @@ class _HomePageState extends State<HomePage> {
       'price': 1300,
       'amount': '12 Kg',
       'description': 'Crunchy and sweet carrots harvested recently.',
+      'id': 4 // Added an ID field for each product
     },
   ];
 
@@ -59,47 +64,42 @@ class _HomePageState extends State<HomePage> {
     });
   }
 
-  void _showOrderDialog(String productName, String productPrice) {
-  final TextEditingController amountController = TextEditingController();
+  void _showOrderDialog(Map<String, dynamic> product) {
+    final amountController = TextEditingController();
 
-  showDialog(
-    context: context,
-    builder: (context) {
-      return AlertDialog(
-        title: Text('Order $productName'),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Text("Price per unit: RWF $productPrice"),
-            TextField(
-              controller: amountController,
-              keyboardType: TextInputType.number,
-              decoration: InputDecoration(labelText: 'Enter quantity'),
-            ),
-          ],
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: Text("Order ${product['name']}"), // Use product['name']
+        content: TextField(
+          controller: amountController,
+          decoration: InputDecoration(labelText: "Amount"),
+          keyboardType: TextInputType.number,
         ),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context),
-            child: Text('Cancel'),
+            child: Text("Cancel"),
           ),
           ElevatedButton(
-            onPressed: () {
-              final quantity = amountController.text;
-              if (quantity.isNotEmpty) {
+            onPressed: () async {
+              final amount = int.tryParse(amountController.text) ?? 0;
+              if (amount > 0) {
+                await DatabaseHelper.instance.insertOrder({
+                  'user_id': 1, // Replace with logged-in user ID
+                  'product_id': product['id'],
+                  'amount': amount,
+                });
                 Navigator.pop(context);
-                ScaffoldMessenger.of(context).showSnackBar(
-                  SnackBar(content: Text('Ordered $quantity of $productName')),
-                );
+                ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text("Order placed!")));
               }
             },
-            child: Text('Confirm'),
+            child: Text("Confirm"),
           ),
         ],
-      );
-    },
-  );
-}
+      ),
+    );
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -183,7 +183,7 @@ class _HomePageState extends State<HomePage> {
                                       Align(
                                         alignment: Alignment.bottomRight,
                                         child: ElevatedButton(
-                                          onPressed: () =>_showOrderDialog(product['name'], product['price']),
+                                          onPressed: () => _showOrderDialog(product), // Pass entire product
                                           child: const Text("Order"),
                                           style: ElevatedButton.styleFrom(
                                             backgroundColor: Colors.green,
@@ -199,7 +199,7 @@ class _HomePageState extends State<HomePage> {
                         );
                       },
                     ),
-            )
+            ),
           ],
         ),
       ),

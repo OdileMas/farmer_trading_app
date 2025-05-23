@@ -1,28 +1,51 @@
-class Farmer {
-  final int? id;
+class User {
+  final int id;
   final String name;
-  final String harvest;
-  final double price;
-  final int? contact;
+  final String role;
 
-  Farmer({this.id, required this.name, required this.harvest, required this.price, this.contact});
+  User({
+    required this.id,
+    required this.name,
+    required this.role,
+  });
 
-  // Convert a Farmer into a Map object for SQLite insertion
+  // Create User from a map (e.g. from SQLite)
+  factory User.fromMap(Map<String, dynamic> map) {
+    return User(
+      id: map['id'] is int ? map['id'] : int.tryParse(map['id'].toString()) ?? 0,
+      name: map['name'] as String,
+      role: map['role'] as String,
+    );
+  }
+
+  // Convert User to a map (e.g. for SQLite)
   Map<String, dynamic> toMap() {
     return {
+      'id': id,
       'name': name,
-      'harvest': harvest,
-      'price': price,
+      'role': role,
     };
   }
 
-  // Convert a Map object into a Farmer object
-  factory Farmer.fromMap(Map<String, dynamic> map) {
-    return Farmer(
-      id: map['id'],
-      name: map['name'],
-      harvest: map['harvest'],
-      price: map['price'],
+  // Optional: JSON serialization for APIs
+  factory User.fromJson(Map<String, dynamic> json) {
+    return User(
+      id: json['id'] is int ? json['id'] : int.tryParse(json['id'].toString()) ?? 0,
+      name: json['name'] as String,
+      role: json['role'] as String,
     );
+  }
+
+  Map<String, dynamic> toJson() {
+    return {
+      'id': id,
+      'name': name,
+      'role': role,
+    };
+  }
+
+  @override
+  String toString() {
+    return 'User(id: $id, name: $name, role: $role)';
   }
 }

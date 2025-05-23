@@ -13,6 +13,14 @@ class OrderPage extends StatefulWidget {
 class _OrderPageState extends State<OrderPage> {
   final TextEditingController _amountController = TextEditingController();
 
+  @override
+ @override
+void initState() {
+  super.initState();
+  print("OrderPage: ${widget.product.name}, ${widget.product.ownerName}, ${widget.product.cost}");
+}
+
+
   void _submitOrder() {
     String amount = _amountController.text;
     if (amount.isEmpty || int.tryParse(amount) == null) {
@@ -28,7 +36,10 @@ class _OrderPageState extends State<OrderPage> {
         title: Text("Order Placed"),
         content: Text("You ordered $amount units of ${widget.product.name}."),
         actions: [
-          TextButton(onPressed: () => Navigator.pop(context), child: Text("OK"))
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: Text("OK"),
+          )
         ],
       ),
     );

@@ -1,14 +1,14 @@
-
 import 'package:flutter/material.dart';
 import 'package:farmer_trading_app/screens/admin_login_screen.dart';
-import 'package:farmer_trading_app/screens/login_screen.dart';  // Assuming you have a user login screen
-import 'package:farmer_trading_app/screens/admin_dashboard_screen.dart';
+import 'package:farmer_trading_app/screens/login_screen.dart';
+import 'screens/admin_dashboard_screen.dart';
 import 'package:farmer_trading_app/screens/home_screen.dart'; 
 import 'package:farmer_trading_app/screens/sign_up_screen.dart';
-import 'package:flutter/widgets.dart'; // Add this if not already
+import 'package:farmer_trading_app/screens/farmer_dashboard.dart';
+import 'package:flutter/widgets.dart';
 
 void main() async {
-  WidgetsFlutterBinding.ensureInitialized(); // ⬅️ This is crucial
+  WidgetsFlutterBinding.ensureInitialized(); 
   runApp(const MyApp());
 }
 
@@ -24,9 +24,31 @@ class MyApp extends StatelessWidget {
         '/': (context) => const RoleSelectionScreen(),
         '/admin_login': (context) => AdminLoginScreen(),
         '/user_login': (context) => LoginScreen(),  // Add your user login screen
-        '/admin_dashboard': (context) => AdminDashboardScreen(),
-        '/user_home': (context) => HomeScreen(),  // Add your user home screen for placing orders
-        '/user_sign_up': (context) => SignUpScreen(), // Ensure this route is defined for the SignUpScreen
+
+        '/farmer_dashboard': (context) {
+          final args = ModalRoute.of(context)!.settings.arguments as Map<String, dynamic>;
+          return FarmerDashboard(
+            farmerId: args['farmerId'],
+            farmerName: args['farmerName'],
+          );
+        },
+
+        '/admin_dashboard': (context) {
+          final args = ModalRoute.of(context)!.settings.arguments as Map<String, dynamic>;
+          return AdminDashboardScreen(
+            adminId: args['adminId'],
+            adminName: args['adminName'],
+          );
+        },
+
+        '/user_home': (context) {
+          final args = ModalRoute.of(context)!.settings.arguments as Map<String, dynamic>;
+          return HomeScreen(
+            userName: args['userName'], 
+          );
+        },
+
+        '/user_sign_up': (context) => SignUpScreen(),
       },
     );
   }
@@ -69,4 +91,4 @@ class RoleSelectionScreen extends StatelessWidget {
       ),
     );
   }
-} 
+}

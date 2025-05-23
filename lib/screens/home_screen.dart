@@ -18,7 +18,7 @@ class HomeScreen extends StatefulWidget {
 
 class _HomeScreenState extends State<HomeScreen> {
   int currentIndex = 0;
-  int notificationCount = 5;
+  int notificationCount = 0;
 
   List<Map<String, dynamic>> _products = [];
   List<Map<String, dynamic>> _filteredProducts = [];
@@ -40,6 +40,17 @@ class _HomeScreenState extends State<HomeScreen> {
 
   Future<void> _loadProducts() async {
     final data = await DatabaseHelper.instance.getFarmers();
+
+    final normalizedData = data.map((product) {
+      return {
+        'name': product['product_name'] ?? 'Unknown',
+        'harvest': product['product_description'] ?? 'No description',
+        'price': product['price']?.toString() ?? '0',
+        'image': (product['image'] != null && product['image'].toString().isNotEmpty)
+            ? product['image']
+            : 'assets/images/default.jpg',
+      };
+    }).toList();
 
     final demoProducts = [
       {
@@ -69,7 +80,7 @@ class _HomeScreenState extends State<HomeScreen> {
     ];
 
     setState(() {
-      _products = [...demoProducts, ...data];
+      _products = [...demoProducts, ...normalizedData];
       _filteredProducts = _products;
     });
   }
@@ -92,7 +103,10 @@ class _HomeScreenState extends State<HomeScreen> {
       context: context,
       builder: (context) {
         return AlertDialog(
-          title: Text('Order $productName'),
+          title: Text(
+            'Order $productName',
+            style: const TextStyle(color: Colors.green, fontWeight: FontWeight.bold),
+          ),
           content: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
@@ -120,6 +134,7 @@ class _HomeScreenState extends State<HomeScreen> {
                   );
                 }
               },
+              style: ElevatedButton.styleFrom(backgroundColor: Colors.green),
               child: const Text('Confirm'),
             ),
           ],
@@ -129,61 +144,82 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   Widget _buildHomeTab() {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Padding(
-          padding: const EdgeInsets.all(16.0),
-          child: Text(
-            "Welcome ${widget.userName ?? "User"} to Farmer Trading App!",
-            style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
-          ),
-        ),
-        Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 16.0),
-          child: TextField(
-            controller: _searchController,
-            decoration: const InputDecoration(
-              hintText: "Search products...",
-              prefixIcon: Icon(Icons.search),
-              border: OutlineInputBorder(borderRadius: BorderRadius.all(Radius.circular(10))),
+    return Container(
+      color: Colors.white,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Container(
+            width: double.infinity,
+            color: Colors.green.shade50,
+            padding: const EdgeInsets.all(16.0),
+            child: Text(
+              "Welcome ${widget.userName ?? "User"} to Farmer Trading App!",
+              style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: Colors.green),
             ),
           ),
-        ),
-        const SizedBox(height: 10),
-        Expanded(
-          child: _filteredProducts.isEmpty
-              ? const Center(child: Text('No products found.'))
-              : ListView.builder(
-                  itemCount: _filteredProducts.length,
-                  itemBuilder: (context, index) {
-                    final product = _filteredProducts[index];
-                    return Card(
-                      margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-                      child: ListTile(
-                        leading: product['image'] != null
-                            ? ClipRRect(
-                                borderRadius: BorderRadius.circular(8),
-                                child: Image.asset(
-                                  product['image'],
-                                  width: 60,
-                                  height: 60,
-                                  fit: BoxFit.cover,
-                                ),
-                              )
-                            : const Icon(Icons.image_not_supported, size: 60),
-                        title: Text(product['name']),
-                        subtitle: Text('Harvest: ${product['harvest']}, Price: RWF ${product['price']}'),
-                        trailing: ElevatedButton(
-                          onPressed: () => _showOrderDialog(product['name'], product['price']),
-                          child: const Text("Order"),
-                        ),
-                      ),
-                    );
-                  },
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 10),
+            child: TextField(
+              controller: _searchController,
+              decoration: InputDecoration(
+                hintText: "Search products...",
+                prefixIcon: const Icon(Icons.search),
+                filled: true,
+                fillColor: Colors.green.shade50,
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(12),
+                  borderSide: BorderSide.none,
                 ),
-        ),
-      ],
+              ),
+            ),
+          ),
+          Expanded(
+            child: _filteredProducts.isEmpty
+                ? const Center(child: Text('No products found.'))
+                : ListView.builder(
+                    itemCount: _filteredProducts.length,
+                    itemBuilder: (context, index) {
+                      final product = _filteredProducts[index];
+                      return Card(
+                        elevation: 3,
+                        color: Colors.white,
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                        margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                        child: ListTile(
+                          leading: ClipRRect(
+                            borderRadius: BorderRadius.circular(8),
+                            child: Image.asset(
+                              product['image'],
+                              width: 60,
+                              height: 60,
+                              fit: BoxFit.cover,
+                            ),
+                          ),
+                          title: Text(product['name'], style: const TextStyle(fontWeight: FontWeight.bold)),
+                          subtitle: Text(
+                            'Harvest: ${product['harvest']}\nPrice: RWF ${product['price']}',
+                            style: const TextStyle(height: 1.4),
+                          ),
+                          trailing: ElevatedButton(
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: Colors.white,
+                              side: const BorderSide(color: Colors.green),
+                              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                            ),
+                            onPressed: () => _showOrderDialog(product['name'], product['price']),
+                            child: const Text(
+                              "Order",
+                              style: TextStyle(color: Colors.green, fontWeight: FontWeight.bold),
+                            ),
+                          ),
+                        ),
+                      );
+                    },
+                  ),
+          ),
+        ],
+      ),
     );
   }
 
@@ -201,7 +237,7 @@ class _HomeScreenState extends State<HomeScreen> {
         child: ListView(
           children: [
             const DrawerHeader(
-              decoration: BoxDecoration(color: Colors.blue),
+              decoration: BoxDecoration(color: Colors.green),
               child: Text('Menu', style: TextStyle(color: Colors.white, fontSize: 24)),
             ),
             ListTile(
@@ -222,7 +258,8 @@ class _HomeScreenState extends State<HomeScreen> {
         ),
       ),
       appBar: AppBar(
-        centerTitle: false,
+        backgroundColor: Colors.green,
+        centerTitle: true,
         title: const Text("Farmer Trading App"),
         actions: [
           Padding(
@@ -248,6 +285,8 @@ class _HomeScreenState extends State<HomeScreen> {
           setState(() => currentIndex = index);
         },
         type: BottomNavigationBarType.fixed,
+        selectedItemColor: Colors.green,
+        unselectedItemColor: Colors.grey,
         items: const [
           BottomNavigationBarItem(
             icon: Icon(IconlyLight.home),
