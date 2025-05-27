@@ -1,17 +1,19 @@
 class Product {
   int? id;
   String name;
-  String? description;
-  double? price;
-  String? imagePath;
+  double price;
+  String farmerName;
+  String farmerContact;
+  String imagePath;
   int farmerId;
 
   Product({
     this.id,
     required this.name,
-    this.description,
-    this.price,
-    this.imagePath,
+    required this.price,
+    required this.farmerName,
+    required this.farmerContact,
+    required this.imagePath,
     required this.farmerId,
   });
 
@@ -19,9 +21,10 @@ class Product {
     return {
       'id': id,
       'name': name,
-      'description': description,
       'price': price,
-      'imagePath': imagePath,
+      'farmerName': farmerName,
+      'farmerContact': farmerContact,
+      'image': imagePath,
       'farmerId': farmerId,
     };
   }
@@ -30,8 +33,9 @@ class Product {
     return Product(
       id: map['id'],
       name: map['name'],
-      description: map['description'],
       price: map['price'],
+      farmerName: map['farmerName'],
+      farmerContact: map['farmerContact'],
       imagePath: map['imagePath'],
       farmerId: map['farmerId'],
     );

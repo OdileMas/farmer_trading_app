@@ -79,16 +79,23 @@ class DatabaseHelper {
     ''');
 
     // Orders Table
-    await db.execute('''
-      CREATE TABLE orders (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
-        productId INTEGER,
-        userId INTEGER,
-        amount INTEGER,
-        totalCost REAL,
-        orderDate TEXT
-      )
-    ''');
+  await db.execute('''
+  CREATE TABLE IF NOT EXISTS orders (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    product_name TEXT,
+    productId INTEGER,
+     farmerId INTEGER,
+    farmerName TEXT,
+    createdAt TEXT
+    quantity TEXT,
+    location TEXT,
+    user_name TEXT,
+    price TEXT,
+    status TEXT,
+    timestamp TEXT
+  )
+''');
+
 
     // Cart Table
     await db.execute('''
@@ -241,19 +248,16 @@ Future<int> updateFarmer(int id, Map<String, dynamic> farmer) async {
 
   // ========== Products Methods ==========
 
-  Future<void> insertProduct(Map<String, dynamic> product) async {
-    final db = await database;
-    await db.insert('products', product);
-  }
+ Future<int> insertProduct(Map<String, dynamic> product) async {
+  final db = await database;
+  return await db.insert('products', product);
+}
 
   Future<void> deleteProductById(int id) async {
     final db = await database;
     await db.delete('products', where: 'id = ?', whereArgs: [id]);
   }
-  // Future<void> getProducts(int id) async{
-  //   final db =await database;
-  //   await db.getProducts('products', where: 'id =?', whereArgs: [product.id]);
-  // }
+
 Future<int> updateProduct(Product product) async {
     final db = await database;
     return await db.update(
@@ -271,17 +275,14 @@ Future<int> updateProduct(Product product) async {
       whereArgs: [id],
     );
   }
-  Future<List<Product>> getProducts({required int farmerId}) async {
+Future<List<Product>> getProducts({String? farmerName}) async {
   final db = await database;
-  final maps = await db.query(
-    'products',
-    where: 'farmer_id = ?',
-    whereArgs: [farmerId],
-  );
 
-  return List.generate(maps.length, (i) {
-    return Product.fromMap(maps[i]);
-  });
+  final List<Map<String, dynamic>> maps = farmerName != null
+      ? await db.query('products', where: 'ownerName = ?', whereArgs: [farmerName])
+      : await db.query('products');
+
+  return maps.map((map) => Product.fromMap(map)).toList();
 }
 
   // ========== Account Methods ==========
@@ -360,11 +361,23 @@ Future<List<Farmer>> getAllFarmers() async {
 
   // ========== Orders Methods ==========
 
-  Future<void> insertOrder(Map<String, dynamic> order) async {
-    final db = await database;
-    await db.insert('orders', order);
-  }
+Future<void> insertOrder(Map<String, dynamic> order) async {
+  final db = await database;
+  await db.insert('orders', order);
+}
 
+Future<List<Map<String, dynamic>>> getOrdersByProductId(int productId) async {
+  final db = await database;
+  return await db.query(
+    'orders',
+    where: 'productId = ?',
+    whereArgs: [productId],
+  );
+}
+Future<List<Map<String, dynamic>>> getOrdersByFarmer(int farmerId) async {
+  final db = await database;
+  return await db.query('orders', where: 'farmerId = ?', whereArgs: [farmerId]);
+}
   // ========== Cart Methods ==========
 
   Future<void> insertCart(Map<String, dynamic> cart) async {

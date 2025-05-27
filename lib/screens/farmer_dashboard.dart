@@ -1,175 +1,232 @@
+// [Keep your existing imports]
 import 'dart:io';
-import '../models/product.dart';
+import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
-import 'package:farmer_trading_app/database_helper.dart';
+import 'package:geolocator/geolocator.dart';
+import 'package:http/http.dart' as http;
+
+import '../models/product.dart';
+import '../database_helper.dart';
 
 class FarmerDashboard extends StatefulWidget {
   final int farmerId;
   final String farmerName;
 
-  const FarmerDashboard({
-    Key? key,
-    required this.farmerId,
-    required this.farmerName,
-  }) : super(key: key);
+  const FarmerDashboard({super.key, required this.farmerName, required this.farmerId});
 
   @override
-  State<FarmerDashboard> createState() => _FarmerDashboardState();
+  _FarmerDashboardState createState() => _FarmerDashboardState();
 }
 
 class _FarmerDashboardState extends State<FarmerDashboard> {
+  List<Map<String, dynamic>> products = [];
+  List<String> recommendations = [];
+  bool showForm = false;
+  bool showSettings = false;
+
   final _formKey = GlobalKey<FormState>();
-
-  // Form input controllers
   final TextEditingController _nameController = TextEditingController();
-  final TextEditingController _descriptionController = TextEditingController();
+  final TextEditingController _contactController = TextEditingController();
+  final TextEditingController _harvestController = TextEditingController();
   final TextEditingController _priceController = TextEditingController();
+  final TextEditingController _passwordController = TextEditingController();
 
-  // Image file picked from gallery or camera
-  File? _selectedImage;
-
-  // List of products fetched from database
-  List<Product> products = [];
-
-  // Flag to toggle product add form visibility
-  bool showAddProductForm = false;
-
-  // For editing products
-  Product? _editingProduct;
+  String farmerContact = '';
 
   @override
   void initState() {
     super.initState();
     _loadProducts();
+    _nameController.text = '';
+    _passwordController.text = '';
   }
 
-  // Load products from SQLite database for the current farmer
-void _loadProducts() async {
-  final db = DatabaseHelper.instance;
-  final fetchedProducts = await db.getProducts(farmerId: widget.farmerId);
-  setState(() {
-    products = fetchedProducts;
-  });
-}
-
-
-  // Pick image using image_picker plugin
-  Future<void> _pickImage() async {
-    try {
-      final pickedFile = await ImagePicker().pickImage(source: ImageSource.gallery);
-      if (pickedFile != null) {
-        setState(() {
-          _selectedImage = File(pickedFile.path);
-        });
-      }
-    } catch (e) {
-      debugPrint('Error picking image: $e');
-    }
+  Future<void> _loadProducts() async {
+    final data = await DatabaseHelper.instance.getFarmers();
+    setState(() {
+      products = data;
+    });
   }
 
-  // Add or update product in the database
-  Future<void> _addOrUpdateProduct() async {
-    if (_formKey.currentState?.validate() != true) return;
+  Future<void> _addProduct() async {
+    if (_harvestController.text.isEmpty ||
+        _priceController.text.isEmpty ||
+        _contactController.text.isEmpty ||
+        _nameController.text.isEmpty) return;
 
-    final db = DatabaseHelper.instance;
-    String name = _nameController.text.trim();
-    String description = _descriptionController.text.trim();
-    double price = double.parse(_priceController.text.trim());
+    await DatabaseHelper.instance.insertFarmer({
+      'name': _nameController.text,
+      'contact': _contactController.text,
+      'harvest': _harvestController.text,
+      'price': double.tryParse(_priceController.text) ?? 0.0,
+    });
+    _clearFields();
+    _loadProducts();
+    setState(() {
+      showForm = false;
+    });
+  }
 
-    if (_editingProduct == null) {
-      // Adding new product
-      Product newProduct = Product(
-        farmerId: widget.farmerId, // fixed: remove int.tryParse, farmerId is already int
-        name: name,
-        description: description,
-        price: price,
-        imagePath: _selectedImage?.path,
-      );
-      await db.insertProduct(newProduct.toMap());
-    } else {
-      // Updating existing product
-      _editingProduct!
-        ..name = name
-        ..description = description
-        ..price = price
-        ..imagePath = _selectedImage?.path ?? _editingProduct!.imagePath;
-
-      await db.updateProduct(_editingProduct!);
-      _editingProduct = null;
-    }
-
-    // Reset form and reload product list
+  void _clearFields() {
     _nameController.clear();
-    _descriptionController.clear();
+    _contactController.clear();
+    _harvestController.clear();
     _priceController.clear();
-    setState(() {
-      _selectedImage = null;
-      showAddProductForm = false;
-    });
-    _loadProducts();
   }
 
-  // Start editing a product: fill form fields and image
-  void _startEditProduct(Product product) {
-    setState(() {
-      _editingProduct = product;
-      showAddProductForm = true;
-      _nameController.text = product.name ?? '';
-      _descriptionController.text = product.description ?? '';
-      _priceController.text = product.price.toString();
-      if (product.imagePath != null) {
-        _selectedImage = File(product.imagePath!);
-      } else {
-        _selectedImage = null;
-      }
-    });
-  }
-
-  // Delete product by id
   Future<void> _deleteProduct(int id) async {
-    final db = DatabaseHelper.instance;
-    await db.deleteProduct(id);
+    await DatabaseHelper.instance.deleteFarmer(id);
     _loadProducts();
-
   }
 
-  // Show AI recommendation history placeholder dialog
-  void _showRecommendationHistory() {
+  void _editProductDialog(Map<String, dynamic> product) {
+    _nameController.text = product['name'] ?? '';
+    _contactController.text = product['contact'] ?? '';
+    _harvestController.text = product['harvest'] ?? '';
+    _priceController.text = product['price']?.toString() ?? '';
+
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
-        title: const Text("Recommendation History"),
-        content: const Text("This feature is under development."),
+        title: Text('Edit Product'),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            _buildTextField(_nameController, 'Farmer Name'),
+            _buildTextField(_contactController, 'Contact'),
+            _buildTextField(_harvestController, 'Harvest Product'),
+            _buildTextField(_priceController, 'Price', isNumber: true),
+          ],
+        ),
         actions: [
-          TextButton(onPressed: () => Navigator.of(context).pop(), child: const Text("Close"))
+          TextButton(
+            onPressed: () {
+              Navigator.of(context).pop();
+              _clearFields();
+            },
+            child: Text('Cancel'),
+          ),
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(backgroundColor: Colors.blue),
+            onPressed: () async {
+              await DatabaseHelper.instance.updateFarmer(product['id'], {
+                'name': _nameController.text,
+                'contact': _contactController.text,
+                'harvest': _harvestController.text,
+                'price': double.tryParse(_priceController.text) ?? 0.0,
+              });
+              Navigator.of(context).pop();
+              _clearFields();
+              _loadProducts();
+            },
+            child: Text('Update'),
+          ),
         ],
       ),
     );
   }
 
-  // Show settings dialog with edit profile and logout options
-  void _showSettingsDialog() {
-    showDialog(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: const Text("Settings"),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            ElevatedButton(
-              onPressed: () {
-                Navigator.of(context).pop();
-                _showProfileEditDialog();
-              },
-              child: const Text("Edit Profile"),
+  Widget buildProductList() {
+    if (products.isEmpty) {
+      return Text('No products found.');
+    }
+
+    return ListView.builder(
+      shrinkWrap: true,
+      physics: NeverScrollableScrollPhysics(),
+      itemCount: products.length,
+      itemBuilder: (context, index) {
+        final product = products[index];
+        return Card(
+          color: Colors.green.shade50,
+          margin: EdgeInsets.symmetric(vertical: 5),
+          child: ListTile(
+            title: Text(
+              product['harvest'] ?? 'Unknown Harvest',
+              style: TextStyle(fontWeight: FontWeight.bold),
             ),
+            subtitle: Text(
+              'Price: \$${(product['price'] ?? 0).toStringAsFixed(2)}\nFarmer: ${product['name'] ?? 'Unknown'}\nContact: ${product['contact'] ?? 'N/A'}',
+            ),
+            trailing: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                IconButton(
+                  icon: Icon(Icons.edit, color: Colors.blue),
+                  onPressed: () => _editProductDialog(product),
+                ),
+                IconButton(
+                  icon: Icon(Icons.delete, color: Colors.red),
+                  onPressed: () => _deleteProduct(product['id']),
+                ),
+              ],
+            ),
+          ),
+        );
+      },
+    );
+  }
+
+  Widget buildProductForm() {
+    return Form(
+      key: _formKey,
+      child: Column(
+        children: [
+          _buildTextField(_nameController, 'Farmer Name'),
+          _buildTextField(_contactController, 'Contact'),
+          _buildTextField(_harvestController, 'Harvest Product'),
+          _buildTextField(_priceController, 'Price', isNumber: true),
+          SizedBox(height: 10),
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(backgroundColor: Colors.green),
+            onPressed: _addProduct,
+            child: Text('Save Product'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildTextField(TextEditingController controller, String label, {bool isNumber = false}) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 8.0),
+      child: TextFormField(
+        controller: controller,
+        keyboardType: isNumber ? TextInputType.number : TextInputType.text,
+        decoration: InputDecoration(
+          labelText: label,
+          border: OutlineInputBorder(),
+          fillColor: Colors.white,
+          filled: true,
+        ),
+      ),
+    );
+  }
+
+  Widget buildSettingsPanel() {
+    return Card(
+      margin: EdgeInsets.only(top: 20),
+      elevation: 3,
+      color: Colors.white,
+      child: Padding(
+        padding: const EdgeInsets.all(16.0),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text('Settings', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+            SizedBox(height: 10),
+            Text('Name: ${widget.farmerName}'),
+            Text('Contact: $farmerContact'),
+            SizedBox(height: 10),
+           ElevatedButton(
+  onPressed: _viewOrderHistory,
+  child: Text('View Order History'),
+  style: ElevatedButton.styleFrom(backgroundColor: Colors.blue),
+),
             ElevatedButton(
-              onPressed: () {
-                Navigator.of(context).pop();
-                _logoutConfirmation();
-              },
-              child: const Text("Logout"),
+              onPressed: () {},
+              child: Text('Logout'),
               style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
             ),
           ],
@@ -178,217 +235,201 @@ void _loadProducts() async {
     );
   }
 
-  // Show profile edit dialog (only name for now)
-  void _showProfileEditDialog() {
-    final TextEditingController _profileNameController = TextEditingController(text: widget.farmerName);
-    showDialog(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: const Text("Edit Profile"),
-        content: TextField(
-          controller: _profileNameController,
-          decoration: const InputDecoration(labelText: "Name"),
-        ),
-        actions: [
-          TextButton(onPressed: () => Navigator.of(context).pop(), child: const Text("Cancel")),
-          ElevatedButton(
-            onPressed: () {
-              // TODO: Save profile changes to DB or state management
-              Navigator.of(context).pop();
-            },
-            child: const Text("Save"),
-          ),
-        ],
-      ),
-    );
+  void toggleSettings() {
+    setState(() {
+      showSettings = !showSettings;
+    });
   }
 
-  // Show logout confirmation dialog
-  void _logoutConfirmation() {
-    showDialog(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: const Text("Logout Confirmation"),
-        content: const Text("Are you sure you want to logout?"),
-        actions: [
-          TextButton(onPressed: () => Navigator.of(context).pop(), child: const Text("Cancel")),
-          ElevatedButton(
-            onPressed: () {
-              Navigator.of(context).pop();
-              Navigator.of(context).pop(); // Close dashboard and go back to login screen
-            },
-            child: const Text("Logout"),
-          ),
-        ],
-      ),
-    );
+  
+Future<Position> getFarmerLocation() async {
+    bool serviceEnabled = await Geolocator.isLocationServiceEnabled();
+    LocationPermission permission = await Geolocator.checkPermission();
+
+    if (!serviceEnabled || permission == LocationPermission.denied) {
+      permission = await Geolocator.requestPermission();
+    }
+
+    return await Geolocator.getCurrentPosition();
   }
 
-  // Build UI card for each product with edit/delete buttons
-  Widget _buildProductCard(Product product) {
-    return Card(
-      margin: const EdgeInsets.symmetric(vertical: 6),
-      elevation: 2,
-      child: ListTile(
-        leading: product.imagePath != null
-            ? Image.file(
-                File(product.imagePath!),
-                width: 50,
-                height: 50,
-                fit: BoxFit.cover,
-              )
-            : const Icon(Icons.image_not_supported, size: 50, color: Colors.grey),
-        title: Text(product.name ?? 'No Name'),
-        subtitle: Text(
-          '${product.description ?? 'No Description'}\nPrice: \$${product.price?.toStringAsFixed(2) ?? '0.00'}',
+  Future<Map<String, dynamic>> getWeather(double lat, double lon) async {
+    final apiKey = 'd8f8b9773c72f4930368a5cb9a85843f';
+    final url =
+        'https://api.openweathermap.org/data/2.5/weather?lat=$lat&lon=$lon&appid=$apiKey&units=metric';
+
+    try {
+      final response = await http.get(Uri.parse(url));
+      if (response.statusCode == 200) {
+        final data = json.decode(response.body);
+        final temperature = data['main']['temp']?.toDouble() ?? 0.0;
+        double rainfall = 0.0;
+        if (data.containsKey('rain')) {
+          if (data['rain'].containsKey('1h')) {
+            rainfall = data['rain']['1h']?.toDouble() ?? 0.0;
+          } else if (data['rain'].containsKey('3h')) {
+            rainfall = data['rain']['3h']?.toDouble() ?? 0.0;
+          }
+        }
+        return {
+          'temperature': temperature,
+          'rainfall': rainfall,
+        };
+      } else {
+        throw Exception('Failed to load weather data');
+      }
+    } catch (e) {
+      print('Error fetching weather: $e');
+      return {'temperature': 25, 'rainfall': 0};
+    }
+  }
+
+  Future<Map<String, dynamic>> getSoil(double lat, double lon) async {
+    await Future.delayed(Duration(seconds: 1));
+    return {'soilType': 'Loamy', 'ph': 6.5};
+  }
+
+  String recommendCrop({
+    required double soilPh,
+    required String soilType,
+    required double rainfall,
+    required double temperature,
+    required String season,
+  }) {
+    if (soilType == 'Loamy' && soilPh >= 6 && rainfall > 50 && temperature >= 20) {
+      return 'Maize';
+    } else if (soilPh < 6 && rainfall > 70) {
+      return 'Beans';
+    }
+    return 'Cassava';
+  }
+
+  void getAIRecommendation() async {
+    try {
+      final pos = await getFarmerLocation();
+      final weather = await getWeather(pos.latitude, pos.longitude);
+      final soil = await getSoil(pos.latitude, pos.longitude);
+
+      final crop = recommendCrop(
+        soilPh: soil['ph'],
+        soilType: soil['soilType'],
+        rainfall: weather['rainfall'],
+        temperature: weather['temperature'],
+        season: 'Summer',
+      );
+
+      final explanation =
+          'Based on ${soil['soilType']} soil with pH ${soil['ph']} and temperature ${weather['temperature']}°C and rainfall ${weather['rainfall']}mm';
+
+      setState(() {
+        recommendations.add('$crop — $explanation');
+      });
+
+      showDialog(
+        context: context,
+        builder: (_) => AlertDialog(
+          title: Text('AI Recommendation'),
+          content: Text('$crop\n\n$explanation'),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context),
+              child: Text("Close"),
+            )
+          ],
         ),
-        isThreeLine: true,
-        trailing: SizedBox(
-          width: 100,
-          child: Row(
-            children: [
-              IconButton(
-                icon: const Icon(Icons.edit, color: Colors.blue),
-                onPressed: () => _startEditProduct(product),
+      );
+    } catch (e) {
+      print('Error getting AI recommendation: $e');
+      showDialog(
+        context: context,
+        builder: (_) => AlertDialog(
+          title: Text('AI Recommendation'),
+          content: Text('Unable to fetch location or weather data. Try again later.'),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context),
+              child: Text("Close"),
+            )
+          ],
+        ),
+      );
+    }
+  }
+  Future<void> _viewOrderHistory() async {
+  final orders = await DatabaseHelper.instance.getOrdersByFarmer(widget.farmerId);
+
+  showDialog(
+    context: context,
+    builder: (context) => AlertDialog(
+      title: Text('Order History'),
+      content: orders.isEmpty
+          ? Text('No orders yet.')
+          : SizedBox(
+              width: double.maxFinite,
+              child: ListView.builder(
+                shrinkWrap: true,
+                itemCount: orders.length,
+                itemBuilder: (context, index) {
+                  final order = orders[index];
+                  return ListTile(
+                    title: Text('${order['productName']} (x${order['amount']})'),
+                    subtitle: Text('User: ${order['userName']}\nDate: ${order['createdAt']}'),
+                  );
+                },
               ),
-              IconButton(
-                icon: const Icon(Icons.delete, color: Colors.red),
-                onPressed: () => _confirmDeleteProduct(product.id!),
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-
-  // Show confirmation dialog before deleting a product
-  void _confirmDeleteProduct(int productId) {
-    showDialog(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: const Text("Delete Product"),
-        content: const Text("Are you sure you want to delete this product?"),
-        actions: [
-          TextButton(onPressed: () => Navigator.of(context).pop(), child: const Text("Cancel")),
-          ElevatedButton(
-            onPressed: () async {
-              Navigator.of(context).pop();
-              await _deleteProduct(productId);
-            },
-            child: const Text("Delete"),
-            style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
-          ),
-        ],
-      ),
-    );
-  }
+            ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.pop(context),
+          child: Text('Close'),
+        )
+      ],
+    ),
+  );
+}
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: Text('Welcome, ${widget.farmerName}'),
+        title: Text('Farmer Dashboard'),
         backgroundColor: Colors.green,
         actions: [
+          IconButton(icon: Icon(Icons.settings), onPressed: toggleSettings),
           IconButton(
-            onPressed: _showRecommendationHistory,
-            icon: const Icon(Icons.history),
-            tooltip: "AI Recommendation History",
-          ),
-          IconButton(
-            onPressed: _showSettingsDialog,
-            icon: const Icon(Icons.settings),
-            tooltip: "Settings",
-          ),
+            icon: Icon(Icons.lightbulb),
+            onPressed: getAIRecommendation,
+          )
         ],
       ),
-      body: ListView(
-        padding: const EdgeInsets.all(12),
-        children: [
-          ElevatedButton(
-            onPressed: () {
-              setState(() {
-                showAddProductForm = !showAddProductForm;
-                if (!showAddProductForm) {
-                  // Reset form if hiding
-                  _editingProduct = null;
-                  _nameController.clear();
-                  _descriptionController.clear();
-                  _priceController.clear();
-                  _selectedImage = null;
-                }
-              });
-            },
-            child: Text(showAddProductForm ? 'Cancel Add/Edit' : 'Add Product'),
-            style: ElevatedButton.styleFrom(backgroundColor: Colors.green),
-          ),
-          if (showAddProductForm)
-            Form(
-              key: _formKey,
-              child: Column(
-                children: [
-                  TextFormField(
-                    controller: _nameController,
-                    decoration: const InputDecoration(labelText: 'Product Name'),
-                    validator: (value) =>
-                        value == null || value.isEmpty ? 'Please enter product name' : null,
-                  ),
-                  TextFormField(
-                    controller: _descriptionController,
-                    decoration: const InputDecoration(labelText: 'Description'),
-                    validator: (value) =>
-                        value == null || value.isEmpty ? 'Please enter description' : null,
-                  ),
-                  TextFormField(
-                    controller: _priceController,
-                    keyboardType: TextInputType.number,
-                    decoration: const InputDecoration(labelText: 'Price'),
-                    validator: (value) {
-                      if (value == null || value.isEmpty) return 'Please enter price';
-                      final price = double.tryParse(value);
-                      if (price == null || price <= 0) return 'Please enter a valid price';
-                      return null;
-                    },
-                  ),
-                  const SizedBox(height: 12),
-                  ElevatedButton(
-                    onPressed: _pickImage,
-                    child: const Text('Pick Image'),
-                    style: ElevatedButton.styleFrom(backgroundColor: Colors.green),
-                  ),
-                  if (_selectedImage != null)
-                    Padding(
-                      padding: const EdgeInsets.only(top: 12),
-                      child: Image.file(
-                        _selectedImage!,
-                        width: 150,
-                        height: 150,
-                        fit: BoxFit.cover,
-                      ),
-                    ),
-                  const SizedBox(height: 12),
-                  ElevatedButton(
-                    onPressed: _addOrUpdateProduct,
-                    child: Text(_editingProduct == null ? 'Add Product' : 'Update Product'),
-                    style: ElevatedButton.styleFrom(backgroundColor: Colors.green),
-                  ),
-                ],
+      body: SingleChildScrollView(
+        padding: EdgeInsets.all(16),
+        child: Column(
+          children: [
+            Text(
+              'Welcome ${widget.farmerName}',
+              style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
+            ),
+            if (showForm) buildProductForm(),
+            SizedBox(height: 10),
+            ElevatedButton(
+              onPressed: () {
+                setState(() => showForm = !showForm);
+              },
+              child: Text(showForm ? 'Cancel' : 'Add New Product'),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: showForm ? Colors.red : Colors.green,
               ),
             ),
-          const SizedBox(height: 16),
-          const Text(
-            'Your Products',
-            style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
-          ),
-          if (products.isEmpty)
-            const Padding(
-              padding: EdgeInsets.symmetric(vertical: 20),
-              child: Text('No products added yet.'),
-            )
-          else
-            ...products.map(_buildProductCard).toList(),
-        ],
+            buildProductList(),
+            if (showSettings) buildSettingsPanel(),
+            SizedBox(height: 20),
+            if (recommendations.isNotEmpty) ...[
+              Text("Recommendations:", style: TextStyle(fontWeight: FontWeight.bold)),
+              ...recommendations.map((rec) => Text("🌾 $rec")).toList()
+            ]
+          ],
+        ),
       ),
     );
   }

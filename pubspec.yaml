@@ -39,6 +39,7 @@ dependencies:
   js: ^0.7.2
   sqflite: ^2.3.2
   geolocator: ^10.1.0
+  http: ^0.13.6
   
   
 

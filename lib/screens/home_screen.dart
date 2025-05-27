@@ -38,17 +38,29 @@ class _HomeScreenState extends State<HomeScreen> {
     super.dispose();
   }
 
-  Future<void> _loadProducts() async {
-    final data = await DatabaseHelper.instance.getFarmers();
+  void _filterProducts() {
+    final query = _searchController.text.toLowerCase();
+    setState(() {
+      _filteredProducts = _products.where((product) {
+        final name = product['name']?.toLowerCase() ?? '';
+        final harvest = product['harvest']?.toLowerCase() ?? '';
+        return name.contains(query) || harvest.contains(query);
+      }).toList();
+    });
+  }
 
-    final normalizedData = data.map((product) {
+  Future<void> _loadProducts() async {
+    final farmerData = await DatabaseHelper.instance.getFarmers();
+
+    final normalizedData = farmerData.map((product) {
+      final productName = product['product_name']?.toString().trim();
       return {
-        'name': product['product_name'] ?? 'Unknown',
+        'name': (productName != null && productName.isNotEmpty) ? productName : 'Unnamed Product',
         'harvest': product['product_description'] ?? 'No description',
         'price': product['price']?.toString() ?? '0',
-        'image': (product['image'] != null && product['image'].toString().isNotEmpty)
-            ? product['image']
-            : 'assets/images/default.jpg',
+        'image': product['image_path'] ?? 'assets/images/default.jpg',
+        'farmerId': product['id'] ?? 0,
+        'farmerName': product['farmer_name'] ?? 'Unknown',
       };
     }).toList();
 
@@ -57,25 +69,33 @@ class _HomeScreenState extends State<HomeScreen> {
         'name': 'Tomatoes',
         'harvest': 'Fresh Tomatoes',
         'price': '1000',
-        'image': 'assets/images/tomato.jpg'
+        'image': 'assets/images/tomato.jpg',
+        'farmerId': 0,
+        'farmerName': 'Demo Farmer',
       },
       {
         'name': 'Avocadoes',
         'harvest': 'Organic Avocadoes',
         'price': '1500',
-        'image': 'assets/images/avocado.jpg'
+        'image': 'assets/images/avocado.jpg',
+        'farmerId': 0,
+        'farmerName': 'Demo Farmer',
       },
       {
         'name': 'Potatoes',
         'harvest': 'Irish Potatoes',
         'price': '800',
-        'image': 'assets/images/potato.jpg'
+        'image': 'assets/images/potato.jpg',
+        'farmerId': 0,
+        'farmerName': 'Demo Farmer',
       },
       {
         'name': 'Carrots',
         'harvest': 'Fresh Carrots',
         'price': '900',
-        'image': 'assets/images/carrots.jpg'
+        'image': 'assets/images/carrots.jpg',
+        'farmerId': 0,
+        'farmerName': 'Demo Farmer',
       },
     ];
 
@@ -85,37 +105,32 @@ class _HomeScreenState extends State<HomeScreen> {
     });
   }
 
-  void _filterProducts() {
-    final query = _searchController.text.toLowerCase();
-    setState(() {
-      _filteredProducts = _products.where((product) {
-        final name = product['name'].toString().toLowerCase();
-        final harvest = product['harvest'].toString().toLowerCase();
-        return name.contains(query) || harvest.contains(query);
-      }).toList();
-    });
-  }
-
-  void _showOrderDialog(String productName, String price) {
+  void _showOrderDialog(Map<String, dynamic> product) {
     final TextEditingController amountController = TextEditingController();
+    final TextEditingController locationController = TextEditingController();
 
     showDialog(
       context: context,
       builder: (context) {
         return AlertDialog(
           title: Text(
-            'Order $productName',
+            'Order ${product['name']}',
             style: const TextStyle(color: Colors.green, fontWeight: FontWeight.bold),
           ),
           content: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              Text("Price per unit: RWF $price"),
+              Text("Price per unit: RWF ${product['price']}"),
               const SizedBox(height: 10),
               TextField(
                 controller: amountController,
                 keyboardType: TextInputType.number,
                 decoration: const InputDecoration(labelText: 'Enter quantity'),
+              ),
+              const SizedBox(height: 10),
+              TextField(
+                controller: locationController,
+                decoration: const InputDecoration(labelText: 'Enter delivery location'),
               ),
             ],
           ),
@@ -125,12 +140,34 @@ class _HomeScreenState extends State<HomeScreen> {
               child: const Text('Cancel'),
             ),
             ElevatedButton(
-              onPressed: () {
-                final quantity = amountController.text;
-                if (quantity.isNotEmpty) {
+              onPressed: () async {
+                final quantity = amountController.text.trim();
+                final location = locationController.text.trim();
+
+                if (quantity.isNotEmpty && location.isNotEmpty) {
+                  final order = {
+                    'product_name': product['name'],
+                    'quantity': quantity,
+                    'location': location,
+                    'user_name': widget.userName ?? "Anonymous",
+                    'price': product['price'],
+                    'status': 'Pending',
+                    'timestamp': DateTime.now().toIso8601String(),
+                    'farmerId': product['farmerId'],
+                    'farmerName': product['farmerName'],
+                  };
+
+                  await DatabaseHelper.instance.insertOrder(order);
+
                   Navigator.pop(context);
                   ScaffoldMessenger.of(context).showSnackBar(
-                    SnackBar(content: Text('Ordered $quantity of $productName')),
+                    SnackBar(
+                      content: Text('Ordered $quantity kg of ${product['name']} to be delivered to $location'),
+                    ),
+                  );
+                } else {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(content: Text('Please enter both quantity and location.')),
                   );
                 }
               },
@@ -207,7 +244,7 @@ class _HomeScreenState extends State<HomeScreen> {
                               side: const BorderSide(color: Colors.green),
                               shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
                             ),
-                            onPressed: () => _showOrderDialog(product['name'], product['price']),
+                            onPressed: () => _showOrderDialog(product),
                             child: const Text(
                               "Order",
                               style: TextStyle(color: Colors.green, fontWeight: FontWeight.bold),
@@ -233,30 +270,6 @@ class _HomeScreenState extends State<HomeScreen> {
     ];
 
     return Scaffold(
-      drawer: Drawer(
-        child: ListView(
-          children: [
-            const DrawerHeader(
-              decoration: BoxDecoration(color: Colors.green),
-              child: Text('Menu', style: TextStyle(color: Colors.white, fontSize: 24)),
-            ),
-            ListTile(
-              title: const Text('Home'),
-              onTap: () {
-                setState(() => currentIndex = 0);
-                Navigator.pop(context);
-              },
-            ),
-            ListTile(
-              title: const Text('Services'),
-              onTap: () {
-                setState(() => currentIndex = 1);
-                Navigator.pop(context);
-              },
-            ),
-          ],
-        ),
-      ),
       appBar: AppBar(
         backgroundColor: Colors.green,
         centerTitle: true,
@@ -288,26 +301,10 @@ class _HomeScreenState extends State<HomeScreen> {
         selectedItemColor: Colors.green,
         unselectedItemColor: Colors.grey,
         items: const [
-          BottomNavigationBarItem(
-            icon: Icon(IconlyLight.home),
-            activeIcon: Icon(IconlyBold.home),
-            label: "Home",
-          ),
-          BottomNavigationBarItem(
-            icon: Icon(Icons.miscellaneous_services),
-            activeIcon: Icon(IconlyBold.setting),
-            label: "Services",
-          ),
-          BottomNavigationBarItem(
-            icon: Icon(Icons.shopping_cart),
-            activeIcon: Icon(IconlyBold.bag),
-            label: "Cart",
-          ),
-          BottomNavigationBarItem(
-            icon: Icon(Icons.person),
-            activeIcon: Icon(IconlyBold.profile),
-            label: "Profile",
-          ),
+          BottomNavigationBarItem(icon: Icon(IconlyLight.home), label: "Home"),
+          BottomNavigationBarItem(icon: Icon(Icons.design_services), label: "Services"),
+          BottomNavigationBarItem(icon: Icon(Icons.shopping_cart), label: "Cart"),
+          BottomNavigationBarItem(icon: Icon(IconlyLight.profile), label: "Profile"),
         ],
       ),
     );
